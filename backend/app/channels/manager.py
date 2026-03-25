@@ -21,7 +21,7 @@ DEFAULT_ASSISTANT_ID = "lead_agent"
 DEFAULT_RUN_CONFIG: dict[str, Any] = {"recursion_limit": 100}
 DEFAULT_RUN_CONTEXT: dict[str, Any] = {
     "thinking_enabled": True,
-    "is_plan_mode": False,
+    "is_plan_mode": True,
     "subagent_enabled": False,
 }
 STREAM_UPDATE_MIN_INTERVAL_SECONDS = 0.35

@@ -8,6 +8,7 @@ export const DEFAULT_LOCAL_SETTINGS: LocalSettings = {
     model_name: undefined,
     mode: undefined,
     reasoning_effort: undefined,
+    plan_mode: true,
   },
   layout: {
     sidebar_collapsed: false,
@@ -26,6 +27,7 @@ export interface LocalSettings {
   > & {
     mode: "flash" | "thinking" | "pro" | "ultra" | undefined;
     reasoning_effort?: "minimal" | "low" | "medium" | "high";
+    plan_mode?: boolean;
   };
   layout: {
     sidebar_collapsed: boolean;
@@ -57,7 +59,7 @@ export function getLocalSettings(): LocalSettings {
       };
       return mergedSettings;
     }
-  } catch {}
+  } catch { }
   return DEFAULT_LOCAL_SETTINGS;
 }
 

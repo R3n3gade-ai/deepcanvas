@@ -16,6 +16,7 @@ import { useI18n } from "@/core/i18n/hooks";
 import { cn } from "@/lib/utils";
 
 import { GithubIcon } from "./github-icon";
+import { useRightPanel } from "./right-panel-context";
 import { Tooltip } from "./tooltip";
 
 export function WorkspaceContainer({
@@ -37,6 +38,8 @@ export function WorkspaceHeader({
 }: React.ComponentProps<"header">) {
   const { t } = useI18n();
   const pathname = usePathname();
+  const { isOpen: isRightPanelOpen, toggle: toggleRightPanel } =
+    useRightPanel();
   const segments = useMemo(() => {
     const parts = pathname?.split("/") || [];
     if (parts.length > 0) {
@@ -90,16 +93,32 @@ export function WorkspaceHeader({
           </BreadcrumbList>
         </Breadcrumb>
       </div>
-      <div className="pr-4">
-        <Tooltip content={t.workspace.githubTooltip}>
-          <a
-            href="https://github.com/bytedance/deer-flow"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="opacity-75 transition hover:opacity-100"
+      <div className="flex items-center gap-2 pr-4">
+        <Tooltip content={isRightPanelOpen ? "Hide panel" : "Show panel"}>
+          <button
+            onClick={toggleRightPanel}
+            className={cn(
+              "rounded-md p-1 transition-colors",
+              isRightPanelOpen
+                ? "text-primary opacity-100"
+                : "opacity-50 hover:opacity-100",
+            )}
           >
-            <GithubIcon className="size-6" />
-          </a>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect width="18" height="18" x="3" y="3" rx="2" />
+              <path d="M15 3v18" />
+            </svg>
+          </button>
         </Tooltip>
       </div>
     </header>

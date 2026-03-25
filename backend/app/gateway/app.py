@@ -3,10 +3,12 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.gateway.config import get_gateway_config
 from app.gateway.routers import (
     agents,
+    api_keys,
     artifacts,
     channels,
     mcp,
@@ -151,11 +153,30 @@ This gateway provides custom endpoints for models, MCP configuration, skills, an
         ],
     )
 
-    # CORS is handled by nginx - no need for FastAPI middleware
+    # Add CORS middleware (needed when running without nginx)
+    config = get_gateway_config()
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=config.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     # Include routers
     # Models API is mounted at /api/models
     app.include_router(models.router)
+
+    # API Keys API is mounted at /api/api-keys
+    app.include_router(api_keys.router)
+
+    # Heartbeat API is mounted at /api/heartbeat
+    from app.gateway.routers import heartbeat
+    app.include_router(heartbeat.router)
+
+    # Soul API is mounted at /api/soul
+    from app.gateway.routers import soul
+    app.include_router(soul.router)
 
     # MCP API is mounted at /api/mcp
     app.include_router(mcp.router)
@@ -183,6 +204,14 @@ This gateway provides custom endpoints for models, MCP configuration, skills, an
 
     # Channels API is mounted at /api/channels
     app.include_router(channels.router)
+
+    # Storage API is mounted at /api/storage
+    from app.gateway.routers import storage
+    app.include_router(storage.router)
+
+    # Kanban API is mounted at /api/kanban
+    from app.gateway.routers import kanban
+    app.include_router(kanban.router)
 
     @app.get("/health", tags=["health"])
     async def health_check() -> dict:

@@ -371,7 +371,7 @@ export function useThreadStream({
               ...extraContext,
               ...context,
               thinking_enabled: context.mode !== "flash",
-              is_plan_mode: context.mode === "pro" || context.mode === "ultra",
+              is_plan_mode: context.plan_mode !== false,
               subagent_enabled: context.mode === "ultra",
               reasoning_effort:
                 context.reasoning_effort ??
@@ -402,9 +402,9 @@ export function useThreadStream({
   const mergedThread =
     optimisticMessages.length > 0
       ? ({
-          ...thread,
-          messages: [...thread.messages, ...optimisticMessages],
-        } as typeof thread)
+        ...thread,
+        messages: [...thread.messages, ...optimisticMessages],
+      } as typeof thread)
       : thread;
 
   return [mergedThread, sendMessage, isUploading] as const;

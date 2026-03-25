@@ -18,6 +18,7 @@ import {
   useArtifacts,
 } from "../artifacts";
 import { useThread } from "../messages/context";
+import { useRightPanel } from "../right-panel-context";
 
 const CLOSE_MODE = { chat: 100, artifacts: 0 };
 const OPEN_MODE = { chat: 60, artifacts: 40 };
@@ -84,15 +85,19 @@ const ChatBox: React.FC<{ children: React.ReactNode; threadId: string }> = ({
     return artifactsOpen;
   }, [artifactsOpen, artifacts]);
 
+  const { close: closeRightPanel } = useRightPanel();
+
   useEffect(() => {
     if (layoutRef.current) {
       if (artifactPanelOpen) {
         layoutRef.current.setLayout(OPEN_MODE);
+        // Auto-collapse the right panel to give content more space
+        closeRightPanel();
       } else {
         layoutRef.current.setLayout(CLOSE_MODE);
       }
     }
-  }, [artifactPanelOpen]);
+  }, [artifactPanelOpen, closeRightPanel]);
 
   return (
     <ResizablePanelGroup

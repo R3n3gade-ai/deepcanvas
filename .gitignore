@@ -52,3 +52,6 @@ web/
 # Deployment artifacts
 backend/Dockerfile.langgraph
 config.yaml.bak
+
+# Local Netlify folder
+.netlify

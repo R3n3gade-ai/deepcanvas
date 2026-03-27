@@ -4,7 +4,11 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "../db";
 import * as schema from "../db/schema";
 
+const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+const isHttps = appUrl.startsWith("https://");
+
 export const auth = betterAuth({
+  baseURL: appUrl,
   database: drizzleAdapter(db, {
     provider: "pg",
     schema: {
@@ -25,9 +29,10 @@ export const auth = betterAuth({
       maxAge: 60 * 5, // 5 minutes
     },
   },
-  trustedOrigins: [
-    process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
-  ],
+  advanced: {
+    useSecureCookies: isHttps,
+  },
+  trustedOrigins: [appUrl],
 });
 
 export type Session = typeof auth.$Infer.Session;

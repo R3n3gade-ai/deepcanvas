@@ -6,14 +6,18 @@ import {
     CheckCircle2Icon,
     CircleIcon,
     FileTextIcon,
+    PencilIcon,
     PlusIcon,
     StickyNoteIcon,
     Trash2Icon,
     XIcon,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { cn } from "@/lib/utils";
+import { useWorkspaceContext } from "@/core/workspaces/workspace-context";
+import { getBackendBaseURL } from "@/core/config";
 
 /* ── Types ── */
 interface UserTask {
@@ -26,6 +30,7 @@ interface UserTask {
     assignedToAgent?: boolean;
     completed: boolean;
     createdAt: string;
+    calendarEventId?: string; // tracks the synced calendar event
 }
 
 const STORAGE_KEY = "deep-canvas-tasks";
@@ -45,25 +50,58 @@ function saveTasks(tasks: UserTask[]) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
 }
 
-/* ── Add Task Dialog ── */
-function AddTaskForm({
+/* ── Calendar sync helpers ── */
+async function syncTaskToCalendar(workspaceId: string, task: UserTask): Promise<string | undefined> {
+    if (!task.dueDate) return undefined;
+    try {
+        const base = getBackendBaseURL();
+        const resp = await fetch(`${base}/api/calendar/${workspaceId}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                title: `📋 ${task.title}`,
+                date: task.dueDate,
+                color: "#F59E0B", // amber for tasks
+            }),
+        });
+        if (resp.ok) {
+            const evt = await resp.json();
+            return evt.id;
+        }
+    } catch { /* ignore */ }
+    return undefined;
+}
+
+async function removeCalendarEvent(workspaceId: string, eventId: string) {
+    try {
+        const base = getBackendBaseURL();
+        await fetch(`${base}/api/calendar/${workspaceId}/${eventId}`, { method: "DELETE" });
+    } catch { /* ignore */ }
+}
+
+/* ── Task/Note Form (shared for add + edit) ── */
+function TaskForm({
+    initial,
     onSave,
     onCancel,
+    mode,
 }: {
+    initial?: Partial<UserTask>;
     onSave: (task: Omit<UserTask, "id" | "completed" | "createdAt">) => void;
     onCancel: () => void;
+    mode: "add" | "edit";
 }) {
-    const [title, setTitle] = useState("");
-    const [dueDate, setDueDate] = useState("");
-    const [dueTime, setDueTime] = useState("");
-    const [comment, setComment] = useState("");
-    const [assignToAgent, setAssignToAgent] = useState(false);
+    const [title, setTitle] = useState(initial?.title || "");
+    const [dueDate, setDueDate] = useState(initial?.dueDate || "");
+    const [dueTime, setDueTime] = useState(initial?.dueTime || "");
+    const [comment, setComment] = useState(initial?.comment || "");
+    const [assignToAgent, setAssignToAgent] = useState(initial?.assignedToAgent || false);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!title.trim()) return;
         onSave({
-            type: "task",
+            type: initial?.type || "task",
             title: title.trim(),
             dueDate: dueDate || undefined,
             dueTime: dueTime || undefined,
@@ -76,7 +114,7 @@ function AddTaskForm({
         <form onSubmit={handleSubmit} className="space-y-2 p-3">
             <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold uppercase tracking-wider opacity-60">
-                    New Task
+                    {mode === "add" ? "New Task" : "Edit Task"}
                 </span>
                 <button
                     type="button"
@@ -148,7 +186,7 @@ function AddTaskForm({
                 disabled={!title.trim()}
                 className="bg-primary text-primary-foreground hover:bg-primary/90 w-full rounded-md px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
             >
-                Save Task
+                {mode === "add" ? "Save Task" : "Update Task"}
             </button>
         </form>
     );
@@ -208,10 +246,14 @@ function TaskItem({
     task,
     onToggle,
     onDelete,
+    onEdit,
+    onAssignAgent,
 }: {
     task: UserTask;
     onToggle: () => void;
     onDelete: () => void;
+    onEdit: () => void;
+    onAssignAgent: () => void;
 }) {
     const isOverdue = useMemo(() => {
         if (!task.dueDate || task.completed) return false;
@@ -249,13 +291,14 @@ function TaskItem({
     return (
         <div
             className={cn(
-                "group flex items-start gap-2 rounded-md border px-3 py-2 transition-colors",
+                "group flex items-start gap-2 rounded-md border px-3 py-2 transition-colors cursor-pointer hover:bg-muted/30",
                 task.completed && "opacity-50",
                 isOverdue && !task.completed && "border-red-500/30 bg-red-500/5",
             )}
+            onClick={onEdit}
         >
             <button
-                onClick={onToggle}
+                onClick={(e) => { e.stopPropagation(); onToggle(); }}
                 className="mt-0.5 shrink-0"
                 title={task.completed ? "Mark incomplete" : "Mark complete"}
             >
@@ -278,13 +321,31 @@ function TaskItem({
                         )}
                         {task.title}
                     </p>
-                    <button
-                        onClick={onDelete}
-                        className="text-muted-foreground hover:text-destructive shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
-                        title="Delete"
-                    >
-                        <Trash2Icon className="size-3" />
-                    </button>
+                    <div className="flex gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onEdit(); }}
+                            className="text-muted-foreground hover:text-foreground"
+                            title="Edit"
+                        >
+                            <PencilIcon className="size-3" />
+                        </button>
+                        {task.assignedToAgent && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onAssignAgent(); }}
+                                className="text-primary hover:text-primary/80"
+                                title="Send to Agent"
+                            >
+                                <BotIcon className="size-3" />
+                            </button>
+                        )}
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                            className="text-muted-foreground hover:text-destructive"
+                            title="Delete"
+                        >
+                            <Trash2Icon className="size-3" />
+                        </button>
+                    </div>
                 </div>
                 {task.comment && (
                     <p className="text-muted-foreground mt-0.5 text-[11px] leading-snug">
@@ -320,6 +381,9 @@ export function TaskManager() {
     const [tasks, setTasks] = useState<UserTask[]>([]);
     const [showAddTask, setShowAddTask] = useState(false);
     const [showAddNote, setShowAddNote] = useState(false);
+    const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+    const { activeWorkspace } = useWorkspaceContext();
+    const router = useRouter();
 
     // Load on mount
     useEffect(() => {
@@ -333,19 +397,58 @@ export function TaskManager() {
     }, []);
 
     const addItem = useCallback(
-        (item: Omit<UserTask, "id" | "completed" | "createdAt">) => {
+        async (item: Omit<UserTask, "id" | "completed" | "createdAt">) => {
             const newTask: UserTask = {
                 ...item,
                 id: crypto.randomUUID(),
                 completed: false,
                 createdAt: new Date().toISOString(),
             };
+
+            // Sync to calendar if has due date
+            if (newTask.dueDate) {
+                const calId = await syncTaskToCalendar(activeWorkspace.id, newTask);
+                if (calId) newTask.calendarEventId = calId;
+            }
+
+            // If assigned to agent, navigate to chat
+            if (newTask.assignedToAgent) {
+                const msg = encodeURIComponent(`Task: ${newTask.title}${newTask.comment ? `\n${newTask.comment}` : ""}${newTask.dueDate ? `\nDue: ${newTask.dueDate}` : ""}`);
+                router.push(`/workspace/chats/new?message=${msg}`);
+            }
+
             const updated = [...loadTasks(), newTask];
             persist(updated);
             setShowAddTask(false);
             setShowAddNote(false);
         },
-        [persist],
+        [persist, activeWorkspace.id, router],
+    );
+
+    const updateTask = useCallback(
+        async (id: string, updates: Omit<UserTask, "id" | "completed" | "createdAt">) => {
+            const current = loadTasks();
+            const existing = current.find(t => t.id === id);
+            if (!existing) return;
+
+            // Remove old calendar event if date changed
+            if (existing.calendarEventId && existing.dueDate !== updates.dueDate) {
+                await removeCalendarEvent(activeWorkspace.id, existing.calendarEventId);
+            }
+
+            const updated: UserTask = { ...existing, ...updates };
+
+            // Sync new due date to calendar
+            if (updates.dueDate && updates.dueDate !== existing.dueDate) {
+                const calId = await syncTaskToCalendar(activeWorkspace.id, updated);
+                if (calId) updated.calendarEventId = calId;
+            }
+
+            const newTasks = current.map(t => t.id === id ? updated : t);
+            persist(newTasks);
+            setEditingTaskId(null);
+        },
+        [persist, activeWorkspace.id],
     );
 
     const toggleComplete = useCallback(
@@ -359,11 +462,23 @@ export function TaskManager() {
     );
 
     const deleteTask = useCallback(
-        (id: string) => {
+        async (id: string) => {
+            const task = tasks.find(t => t.id === id);
+            if (task?.calendarEventId) {
+                await removeCalendarEvent(activeWorkspace.id, task.calendarEventId);
+            }
             const updated = tasks.filter((t) => t.id !== id);
             persist(updated);
         },
-        [tasks, persist],
+        [tasks, persist, activeWorkspace.id],
+    );
+
+    const handleAssignAgent = useCallback(
+        (task: UserTask) => {
+            const msg = encodeURIComponent(`Task: ${task.title}${task.comment ? `\n${task.comment}` : ""}${task.dueDate ? `\nDue: ${task.dueDate}` : ""}`);
+            router.push(`/workspace/chats/new?message=${msg}`);
+        },
+        [router],
     );
 
     // Sort: incomplete first, then by due date (soonest first), then notes, then completed
@@ -395,6 +510,7 @@ export function TaskManager() {
     }, [tasks]);
 
     const incompleteCount = tasks.filter((t) => !t.completed).length;
+    const editingTask = editingTaskId ? tasks.find(t => t.id === editingTaskId) : null;
 
     return (
         <div className="flex flex-col gap-2 px-2 pt-1">
@@ -407,6 +523,7 @@ export function TaskManager() {
                     <button
                         onClick={() => {
                             setShowAddNote(false);
+                            setEditingTaskId(null);
                             setShowAddTask((v) => !v);
                         }}
                         title="New Task"
@@ -417,6 +534,7 @@ export function TaskManager() {
                     <button
                         onClick={() => {
                             setShowAddTask(false);
+                            setEditingTaskId(null);
                             setShowAddNote((v) => !v);
                         }}
                         title="Quick Note"
@@ -430,9 +548,10 @@ export function TaskManager() {
             {/* Inline Forms */}
             {showAddTask && (
                 <div className="rounded-lg border shadow-sm">
-                    <AddTaskForm
+                    <TaskForm
                         onSave={addItem}
                         onCancel={() => setShowAddTask(false)}
+                        mode="add"
                     />
                 </div>
             )}
@@ -445,6 +564,18 @@ export function TaskManager() {
                 </div>
             )}
 
+            {/* Edit Form */}
+            {editingTask && (
+                <div className="rounded-lg border shadow-sm border-primary/30">
+                    <TaskForm
+                        initial={editingTask}
+                        onSave={(updates) => updateTask(editingTask.id, updates)}
+                        onCancel={() => setEditingTaskId(null)}
+                        mode="edit"
+                    />
+                </div>
+            )}
+
             {/* Task List */}
             <div className="flex flex-col gap-1.5">
                 {sortedTasks.map((task) => (
@@ -453,6 +584,8 @@ export function TaskManager() {
                         task={task}
                         onToggle={() => toggleComplete(task.id)}
                         onDelete={() => deleteTask(task.id)}
+                        onEdit={() => setEditingTaskId(editingTaskId === task.id ? null : task.id)}
+                        onAssignAgent={() => handleAssignAgent(task)}
                     />
                 ))}
             </div>

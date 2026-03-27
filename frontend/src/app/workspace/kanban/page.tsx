@@ -337,9 +337,41 @@ export default function KanbanPage() {
     const kanban = useKanban(activeWorkspace.id);
     const [activeCard, setActiveCard] = useState<KanbanCard | null>(null);
 
+    // Resizable panel state
+    const PANEL_KEY = "deep-canvas-kanban-panel-width";
+    const [panelWidth, setPanelWidth] = useState(() => {
+        if (typeof window === "undefined") return 320;
+        const saved = localStorage.getItem(PANEL_KEY);
+        return saved ? Math.max(200, Math.min(600, parseInt(saved))) : 320;
+    });
+    const [isResizing, setIsResizing] = useState(false);
+
     useEffect(() => {
         document.title = `Kanban - ${activeWorkspace.name} - DEEP CANVAS`;
     }, [activeWorkspace.name]);
+
+    // Resize handlers
+    useEffect(() => {
+        if (!isResizing) return;
+        const handleMouseMove = (e: MouseEvent) => {
+            const newWidth = Math.max(200, Math.min(600, e.clientX));
+            setPanelWidth(newWidth);
+        };
+        const handleMouseUp = () => {
+            setIsResizing(false);
+            localStorage.setItem(PANEL_KEY, String(panelWidth));
+        };
+        document.addEventListener("mousemove", handleMouseMove);
+        document.addEventListener("mouseup", handleMouseUp);
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
+        return () => {
+            document.removeEventListener("mousemove", handleMouseMove);
+            document.removeEventListener("mouseup", handleMouseUp);
+            document.body.style.cursor = "";
+            document.body.style.userSelect = "";
+        };
+    }, [isResizing, panelWidth]);
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -394,8 +426,8 @@ export default function KanbanPage() {
 
     return (
         <div className="flex h-full">
-            {/* Left: Task Hierarchy Panel */}
-            <div className="w-80 shrink-0">
+            {/* Left: Task Hierarchy Panel (resizable) */}
+            <div className="shrink-0 relative" style={{ width: panelWidth }}>
                 <KanbanTaskPanel
                     sections={kanban.sections}
                     onAddSection={kanban.addSection}
@@ -405,6 +437,14 @@ export default function KanbanPage() {
                     onAddSubtask={kanban.addSubtask}
                     onDeleteSubtask={kanban.deleteSubtask}
                     onPushToBoard={kanban.pushSubtaskToBoard}
+                />
+                {/* Resize handle */}
+                <div
+                    onMouseDown={() => setIsResizing(true)}
+                    className={cn(
+                        "absolute right-0 top-0 h-full w-1.5 cursor-col-resize transition-colors hover:bg-primary/30",
+                        isResizing && "bg-primary/50",
+                    )}
                 />
             </div>
 
@@ -444,3 +484,4 @@ export default function KanbanPage() {
         </div>
     );
 }
+

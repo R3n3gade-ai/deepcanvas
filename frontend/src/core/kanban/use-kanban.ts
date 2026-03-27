@@ -70,11 +70,18 @@ export function useKanban(workspaceId: string) {
         sections: [],
     });
     const pollRef = useRef<ReturnType<typeof setInterval>>(null);
+    // Track collapsed sections separately so polling doesn't overwrite them
+    const collapsedRef = useRef<Set<string>>(new Set());
 
-    // Fetch board from API
+    // Fetch board from API (preserves local collapse state)
     const fetchBoard = useCallback(async () => {
         try {
             const data = await api<KanbanState>("GET", `/${workspaceId}`);
+            // Merge collapsed state from our local ref
+            data.sections = data.sections.map((s) => ({
+                ...s,
+                collapsed: collapsedRef.current.has(s.id),
+            }));
             setState(data);
         } catch (e) {
             console.error("Failed to fetch Kanban board:", e);
@@ -196,7 +203,12 @@ export function useKanban(workspaceId: string) {
     );
 
     const toggleSectionCollapse = useCallback((sectionId: string) => {
-        // Local-only toggle (UI state, not persisted)
+        // Update the ref so polling preserves the state
+        if (collapsedRef.current.has(sectionId)) {
+            collapsedRef.current.delete(sectionId);
+        } else {
+            collapsedRef.current.add(sectionId);
+        }
         setState((prev) => ({
             ...prev,
             sections: prev.sections.map((s) =>
@@ -204,6 +216,58 @@ export function useKanban(workspaceId: string) {
             ),
         }));
     }, []);
+
+    const moveSectionUp = useCallback(
+        async (sectionId: string) => {
+            const sorted = [...state.sections].sort((a, b) => a.order - b.order);
+            const idx = sorted.findIndex((s) => s.id === sectionId);
+            if (idx <= 0) return;
+            const above = sorted[idx - 1]!;
+            const current = sorted[idx]!;
+            // Swap orders via backend
+            try {
+                await api("PUT", `/${workspaceId}/sections/${current.id}`, { name: current.name, order: above.order });
+                await api("PUT", `/${workspaceId}/sections/${above.id}`, { name: above.name, order: current.order });
+                fetchBoard();
+            } catch {
+                // Fallback: local swap
+                setState((prev) => ({
+                    ...prev,
+                    sections: prev.sections.map((s) => {
+                        if (s.id === current.id) return { ...s, order: above.order };
+                        if (s.id === above.id) return { ...s, order: current.order };
+                        return s;
+                    }),
+                }));
+            }
+        },
+        [state.sections, workspaceId, fetchBoard],
+    );
+
+    const moveSectionDown = useCallback(
+        async (sectionId: string) => {
+            const sorted = [...state.sections].sort((a, b) => a.order - b.order);
+            const idx = sorted.findIndex((s) => s.id === sectionId);
+            if (idx === -1 || idx >= sorted.length - 1) return;
+            const below = sorted[idx + 1]!;
+            const current = sorted[idx]!;
+            try {
+                await api("PUT", `/${workspaceId}/sections/${current.id}`, { name: current.name, order: below.order });
+                await api("PUT", `/${workspaceId}/sections/${below.id}`, { name: below.name, order: current.order });
+                fetchBoard();
+            } catch {
+                setState((prev) => ({
+                    ...prev,
+                    sections: prev.sections.map((s) => {
+                        if (s.id === current.id) return { ...s, order: below.order };
+                        if (s.id === below.id) return { ...s, order: current.order };
+                        return s;
+                    }),
+                }));
+            }
+        },
+        [state.sections, workspaceId, fetchBoard],
+    );
 
     /* ── Subtask operations ── */
     const addSubtask = useCallback(
@@ -249,6 +313,8 @@ export function useKanban(workspaceId: string) {
         renameSection,
         deleteSection,
         toggleSectionCollapse,
+        moveSectionUp,
+        moveSectionDown,
         addSubtask,
         deleteSubtask,
         pushSubtaskToBoard,

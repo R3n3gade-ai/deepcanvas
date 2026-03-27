@@ -429,11 +429,13 @@ export default function KanbanPage() {
             {/* Left: Task Hierarchy Panel (resizable) */}
             <div className="shrink-0 relative" style={{ width: panelWidth }}>
                 <KanbanTaskPanel
-                    sections={kanban.sections}
+                    sections={kanban.sections.slice().sort((a, b) => a.order - b.order)}
                     onAddSection={kanban.addSection}
                     onRenameSection={kanban.renameSection}
                     onDeleteSection={kanban.deleteSection}
                     onToggleCollapse={kanban.toggleSectionCollapse}
+                    onMoveSectionUp={kanban.moveSectionUp}
+                    onMoveSectionDown={kanban.moveSectionDown}
                     onAddSubtask={kanban.addSubtask}
                     onDeleteSubtask={kanban.deleteSubtask}
                     onPushToBoard={kanban.pushSubtaskToBoard}

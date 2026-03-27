@@ -1,13 +1,15 @@
 "use client";
 
 import {
+    ArrowDownIcon,
+    ArrowRightToLineIcon,
+    ArrowUpIcon,
+    CalendarIcon,
     ChevronDownIcon,
     ChevronRightIcon,
     PlusIcon,
     Trash2Icon,
-    ArrowRightToLineIcon,
     XIcon,
-    CalendarIcon,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -20,6 +22,8 @@ interface KanbanTaskPanelProps {
     onRenameSection: (sectionId: string, name: string) => void;
     onDeleteSection: (sectionId: string) => void;
     onToggleCollapse: (sectionId: string) => void;
+    onMoveSectionUp: (sectionId: string) => void;
+    onMoveSectionDown: (sectionId: string) => void;
     onAddSubtask: (sectionId: string, title: string, dueDate?: string) => void;
     onDeleteSubtask: (sectionId: string, subtaskId: string) => void;
     onPushToBoard: (sectionId: string, subtaskId: string) => void;
@@ -31,6 +35,8 @@ export function KanbanTaskPanel({
     onRenameSection,
     onDeleteSection,
     onToggleCollapse,
+    onMoveSectionUp,
+    onMoveSectionDown,
     onAddSubtask,
     onDeleteSubtask,
     onPushToBoard,
@@ -145,9 +151,25 @@ export function KanbanTaskPanel({
                                 {/* Delete section */}
                                 <button
                                     onClick={() => onDeleteSection(section.id)}
-                                    className="mr-2 shrink-0 rounded p-0.5 text-muted-foreground/0 transition-colors group-hover:text-muted-foreground/50 hover:!text-red-400"
+                                    className="mr-1 shrink-0 rounded p-0.5 text-muted-foreground/0 transition-colors group-hover:text-muted-foreground/50 hover:!text-red-400"
                                 >
                                     <Trash2Icon className="size-3" />
+                                </button>
+
+                                {/* Reorder buttons */}
+                                <button
+                                    onClick={() => onMoveSectionUp(section.id)}
+                                    className="shrink-0 rounded p-0.5 text-muted-foreground/0 transition-colors group-hover:text-muted-foreground/40 hover:!text-foreground"
+                                    title="Move section up"
+                                >
+                                    <ArrowUpIcon className="size-3" />
+                                </button>
+                                <button
+                                    onClick={() => onMoveSectionDown(section.id)}
+                                    className="mr-2 shrink-0 rounded p-0.5 text-muted-foreground/0 transition-colors group-hover:text-muted-foreground/40 hover:!text-foreground"
+                                    title="Move section down"
+                                >
+                                    <ArrowDownIcon className="size-3" />
                                 </button>
                             </div>
 

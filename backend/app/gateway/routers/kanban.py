@@ -81,6 +81,7 @@ class AddSectionRequest(BaseModel):
 
 class RenameSectionRequest(BaseModel):
     name: str
+    order: Optional[int] = None
 
 class AddSubtaskRequest(BaseModel):
     title: str
@@ -209,6 +210,8 @@ async def rename_section(workspace_id: str, section_id: str, req: RenameSectionR
     for sec in board["sections"]:
         if sec["id"] == section_id:
             sec["name"] = req.name.strip()
+            if req.order is not None:
+                sec["order"] = req.order
             _save_board(workspace_id, board)
             return sec
     raise HTTPException(status_code=404, detail="Section not found")

@@ -95,6 +95,13 @@ async def get_board(workspace_id: str):
     return _load_board(workspace_id)
 
 
+@router.put("/{workspace_id}")
+async def update_board(workspace_id: str, board: dict):
+    """Update the full Kanban board state."""
+    _save_board(workspace_id, board)
+    return _load_board(workspace_id)
+
+
 # ── Columns ──
 
 @router.post("/{workspace_id}/columns")

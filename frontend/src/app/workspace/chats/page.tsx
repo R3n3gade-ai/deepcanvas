@@ -14,10 +14,12 @@ import { useI18n } from "@/core/i18n/hooks";
 import { useThreads } from "@/core/threads/hooks";
 import { pathOfThread, titleOfThread } from "@/core/threads/utils";
 import { formatTimeAgo } from "@/core/utils/datetime";
+import { useWorkspaceContext } from "@/core/workspaces/workspace-context";
 
 export default function ChatsPage() {
   const { t } = useI18n();
   const { data: threads } = useThreads();
+  const { isThreadInActiveWorkspace } = useWorkspaceContext();
   const [search, setSearch] = useState("");
 
   useEffect(() => {
@@ -26,9 +28,10 @@ export default function ChatsPage() {
 
   const filteredThreads = useMemo(() => {
     return threads?.filter((thread) => {
+      if (!isThreadInActiveWorkspace(thread.thread_id)) return false;
       return titleOfThread(thread).toLowerCase().includes(search.toLowerCase());
     });
-  }, [threads, search]);
+  }, [threads, search, isThreadInActiveWorkspace]);
   return (
     <WorkspaceContainer>
       <WorkspaceHeader></WorkspaceHeader>

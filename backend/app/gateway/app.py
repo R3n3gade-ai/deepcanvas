@@ -213,6 +213,10 @@ This gateway provides custom endpoints for models, MCP configuration, skills, an
     from app.gateway.routers import kanban
     app.include_router(kanban.router)
 
+    # Calendar API is mounted at /api/calendar
+    from app.gateway.routers import calendar
+    app.include_router(calendar.router)
+
     @app.get("/health", tags=["health"])
     async def health_check() -> dict:
         """Health check endpoint.

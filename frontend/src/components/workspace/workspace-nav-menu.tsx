@@ -1,14 +1,13 @@
 "use client";
 
 import {
-  BugIcon,
   ChevronsUpDown,
-  GlobeIcon,
-  InfoIcon,
-  MailIcon,
+  LogOutIcon,
   Settings2Icon,
   SettingsIcon,
+  UserIcon,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import {
@@ -26,6 +25,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useI18n } from "@/core/i18n/hooks";
+import { useSession, signOut } from "@/server/better-auth/client";
 
 import { GithubIcon } from "./github-icon";
 import { SettingsDialog } from "./settings";
@@ -58,6 +58,8 @@ export function WorkspaceNavMenu() {
   const [mounted, setMounted] = useState(false);
   const { open: isSidebarOpen } = useSidebar();
   const { t } = useI18n();
+  const { data: session } = useSession();
+  const router = useRouter();
 
   useEffect(() => {
     setMounted(true);
@@ -87,6 +89,20 @@ export function WorkspaceNavMenu() {
                 align="end"
                 sideOffset={4}
               >
+                {session?.user && (
+                  <>
+                    <DropdownMenuGroup>
+                      <DropdownMenuItem disabled className="opacity-70">
+                        <UserIcon />
+                        <div className="flex flex-col">
+                          <span className="text-xs font-medium">{session.user.name}</span>
+                          <span className="text-[10px] text-muted-foreground">{session.user.email}</span>
+                        </div>
+                      </DropdownMenuItem>
+                    </DropdownMenuGroup>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 <DropdownMenuGroup>
                   <DropdownMenuItem
                     onClick={() => {
@@ -96,6 +112,19 @@ export function WorkspaceNavMenu() {
                   >
                     <Settings2Icon />
                     {t.common.settings}
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <DropdownMenuItem
+                    onClick={async () => {
+                      await signOut();
+                      router.push("/login");
+                    }}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <LogOutIcon />
+                    Sign out
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
               </DropdownMenuContent>

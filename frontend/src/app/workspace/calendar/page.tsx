@@ -70,32 +70,53 @@ export default function CalendarPage() {
         document.title = `Calendar - ${activeWorkspace.name} - DEEP CANVAS`;
     }, [activeWorkspace.name]);
 
-    // Fetch Kanban subtasks with due dates
+    // Fetch Kanban subtasks with due dates AND manual events from backend
     const fetchEvents = useCallback(async () => {
         try {
             const base = getBackendBaseURL();
-            const resp = await fetch(`${base}/api/kanban/${activeWorkspace.id}`);
-            if (!resp.ok) return;
-            const board = await resp.json();
+
+            // Fetch kanban events
             const kanbanEvents: CalendarEvent[] = [];
-            for (const section of board.sections || []) {
-                for (const st of section.subtasks || []) {
-                    if (st.dueDate) {
-                        kanbanEvents.push({
-                            id: `kanban-${st.id}`,
-                            title: st.title,
-                            date: st.dueDate,
-                            color: section.color || "#3B82F6",
-                            source: "kanban",
-                            sectionName: section.name,
+            try {
+                const resp = await fetch(`${base}/api/kanban/${activeWorkspace.id}`);
+                if (resp.ok) {
+                    const board = await resp.json();
+                    for (const section of board.sections || []) {
+                        for (const st of section.subtasks || []) {
+                            if (st.dueDate) {
+                                kanbanEvents.push({
+                                    id: `kanban-${st.id}`,
+                                    title: st.title,
+                                    date: st.dueDate,
+                                    color: section.color || "#3B82F6",
+                                    source: "kanban",
+                                    sectionName: section.name,
+                                });
+                            }
+                        }
+                    }
+                }
+            } catch { /* ignore kanban errors */ }
+
+            // Fetch manual events from backend
+            const manualEvents: CalendarEvent[] = [];
+            try {
+                const calResp = await fetch(`${base}/api/calendar/${activeWorkspace.id}`);
+                if (calResp.ok) {
+                    const events = await calResp.json();
+                    for (const evt of events) {
+                        manualEvents.push({
+                            id: evt.id,
+                            title: evt.title,
+                            date: evt.date,
+                            color: evt.color || "#8B5CF6",
+                            source: "manual",
                         });
                     }
                 }
-            }
-            setEvents((prev) => {
-                const manual = prev.filter((e) => e.source === "manual");
-                return [...manual, ...kanbanEvents];
-            });
+            } catch { /* ignore calendar errors */ }
+
+            setEvents([...manualEvents, ...kanbanEvents]);
         } catch {
             /* ignore */
         }
@@ -120,23 +141,37 @@ export default function CalendarPage() {
 
     const goToday = () => setCurrentDate(new Date());
 
-    // Add manual event
-    const handleAddEvent = () => {
+    // Add manual event via backend API
+    const handleAddEvent = async () => {
         if (!newTitle.trim()) return;
-        const evt: CalendarEvent = {
-            id: `manual-${Date.now()}`,
-            title: newTitle.trim(),
-            date: newDate,
-            color: "#8B5CF6",
-            source: "manual",
-        };
-        setEvents((prev) => [...prev, evt]);
-        setNewTitle("");
-        setIsAdding(false);
+        try {
+            const base = getBackendBaseURL();
+            const resp = await fetch(`${base}/api/calendar/${activeWorkspace.id}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ title: newTitle.trim(), date: newDate }),
+            });
+            if (resp.ok) {
+                setNewTitle("");
+                setIsAdding(false);
+                fetchEvents();
+            }
+        } catch { /* ignore */ }
     };
 
-    const deleteEvent = (id: string) => {
-        setEvents((prev) => prev.filter((e) => e.id !== id));
+    const deleteEvent = async (id: string) => {
+        // Only delete manual events via backend
+        if (id.startsWith("kanban-")) return;
+        try {
+            const base = getBackendBaseURL();
+            await fetch(`${base}/api/calendar/${activeWorkspace.id}/${id}`, {
+                method: "DELETE",
+            });
+            fetchEvents();
+        } catch {
+            // Fallback: remove from local state
+            setEvents((prev) => prev.filter((e) => e.id !== id));
+        }
     };
 
     // Get events for a specific date

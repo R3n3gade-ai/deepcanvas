@@ -22,6 +22,7 @@ import { useLocalSettings } from "@/core/settings";
 import { useThreadStream } from "@/core/threads/hooks";
 import { textOfMessage } from "@/core/threads/utils";
 import { env } from "@/env";
+import { useWorkspaceContext } from "@/core/workspaces/workspace-context";
 import { cn } from "@/lib/utils";
 
 export default function ChatPage() {
@@ -32,6 +33,7 @@ export default function ChatPage() {
   useSpecificChatMode();
 
   const { showNotification } = useNotification();
+  const { tagThread } = useWorkspaceContext();
 
   const [thread, sendMessage, isUploading] = useThreadStream({
     threadId: isNewThread ? undefined : threadId,
@@ -39,6 +41,7 @@ export default function ChatPage() {
     isMock,
     onStart: () => {
       setIsNewThread(false);
+      tagThread(threadId);
       // ! Important: Never use next.js router for navigation in this case, otherwise it will cause the thread to re-mount and lose all states. Use native history API instead.
       history.replaceState(null, "", `/workspace/chats/${threadId}`);
     },

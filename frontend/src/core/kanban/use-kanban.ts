@@ -69,7 +69,7 @@ export function useKanban(workspaceId: string) {
         cards: [],
         sections: [],
     });
-    const pollRef = useRef<ReturnType<typeof setInterval>>();
+    const pollRef = useRef<ReturnType<typeof setInterval>>(null);
 
     // Fetch board from API
     const fetchBoard = useCallback(async () => {
@@ -85,7 +85,7 @@ export function useKanban(workspaceId: string) {
     useEffect(() => {
         fetchBoard();
         pollRef.current = setInterval(fetchBoard, 3000);
-        return () => clearInterval(pollRef.current);
+        return () => { if (pollRef.current) clearInterval(pollRef.current); };
     }, [fetchBoard]);
 
     /* ── Column operations ── */

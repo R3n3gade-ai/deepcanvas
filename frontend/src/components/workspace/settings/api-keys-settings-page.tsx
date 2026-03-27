@@ -146,7 +146,7 @@ export function ApiKeysSettingsPage() {
     const groups = keyDefs.reduce(
         (acc, def) => {
             if (!acc[def.group]) acc[def.group] = [];
-            acc[def.group].push(def);
+            acc[def.group]!.push(def);
             return acc;
         },
         {} as Record<string, ApiKeyDef[]>,

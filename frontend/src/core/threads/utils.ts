@@ -10,11 +10,15 @@ export function textOfMessage(message: Message) {
   if (typeof message.content === "string") {
     return message.content;
   } else if (Array.isArray(message.content)) {
+    const parts: string[] = [];
     for (const part of message.content) {
-      if (part.type === "text") {
-        return part.text;
+      if (typeof part === "string") {
+        parts.push(part);
+      } else if (part.type === "text") {
+        parts.push(part.text);
       }
     }
+    return parts.join("") || null;
   }
   return null;
 }

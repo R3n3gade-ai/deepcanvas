@@ -80,7 +80,7 @@ export function ApiKeysSettingsPage() {
     const [saving, setSaving] = useState(false);
 
     const backendUrl =
-        process.env.NEXT_PUBLIC_BACKEND_BASE_URL || "http://localhost:8001";
+        process.env.NEXT_PUBLIC_BACKEND_BASE_URL || "";
 
     useEffect(() => {
         async function fetchKeys() {

@@ -13,8 +13,8 @@ let waved = false;
 
 const BACKEND_URL =
   typeof window !== "undefined"
-    ? process.env.NEXT_PUBLIC_BACKEND_BASE_URL || "http://localhost:8001"
-    : "http://localhost:8001";
+    ? process.env.NEXT_PUBLIC_BACKEND_BASE_URL || ""
+    : "";
 
 function OnboardingBanner() {
   return (

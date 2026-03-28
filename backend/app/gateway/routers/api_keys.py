@@ -274,5 +274,34 @@ async def update_api_keys(request: ApiKeysUpdateRequest) -> ApiKeysUpdateRespons
     for key, value in updates.items():
         os.environ[key] = value
 
+    # Auto-restart langgraph container so it picks up the new keys
+    # The Docker socket is mounted into this container
+    _restart_langgraph()
+
     logger.info(f"Updated API keys: {list(updates.keys())}")
     return ApiKeysUpdateResponse(success=True, updated=list(updates.keys()))
+
+
+def _restart_langgraph() -> None:
+    """Recreate the langgraph container so it picks up new env vars from .env file."""
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            [
+                "docker", "compose", "-f", "/app/docker/docker-compose.yaml",
+                "up", "-d", "--force-recreate", "langgraph",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd="/app/docker",
+        )
+        if result.returncode == 0:
+            logger.info("Recreated deer-flow-langgraph to apply new API keys")
+        else:
+            logger.warning(f"Failed to recreate langgraph: {result.stderr}")
+    except Exception as e:
+        logger.warning(f"Could not recreate langgraph container: {e}")
+
+

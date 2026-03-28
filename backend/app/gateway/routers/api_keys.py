@@ -295,6 +295,11 @@ def _restart_langgraph() -> None:
         )
         if result.returncode == 0:
             logger.info("Restarted deer-flow-langgraph to apply new API keys")
+            # Also restart nginx to refresh upstream connections
+            subprocess.run(
+                ["docker", "restart", "deer-flow-nginx"],
+                capture_output=True, text=True, timeout=15,
+            )
         else:
             logger.warning(f"Failed to restart langgraph: {result.stderr}")
     except Exception as e:

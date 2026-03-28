@@ -10,12 +10,13 @@ import urllib.request
 import urllib.error
 from typing import Literal
 
+import os
 from langchain.tools import tool
-
 logger = logging.getLogger(__name__)
 
-# The gateway API base URL
-GATEWAY_URL = "http://127.0.0.1:8001"
+# The gateway API base URL — uses Docker service name in production, localhost in dev
+GATEWAY_URL = os.environ.get("GATEWAY_URL", "http://gateway:8001")
+
 
 
 def _api(method: str, path: str, body: dict | None = None) -> dict:

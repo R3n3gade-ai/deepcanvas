@@ -5,6 +5,7 @@ Allows the agent to list, add, edit, and delete calendar events.
 
 import json
 import logging
+import os
 import urllib.request
 import urllib.error
 from typing import Literal
@@ -13,7 +14,7 @@ from langchain.tools import tool
 
 logger = logging.getLogger(__name__)
 
-GATEWAY_URL = "http://127.0.0.1:8001"
+GATEWAY_URL = os.environ.get("GATEWAY_URL", "http://gateway:8001")
 
 
 def _api(method: str, path: str, body: dict | None = None) -> dict | list:

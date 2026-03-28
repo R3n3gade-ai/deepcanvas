@@ -18,8 +18,12 @@ from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/kanban", tags=["kanban"])
 
-KANBAN_ROOT = Path(os.path.expanduser("~")) / ".deer-flow" / "kanban"
+# Use the volume-mounted path in Docker, fallback to home dir for local dev
+_app_deer_flow = Path(__file__).resolve().parents[4] / ".deer-flow"
+_home_deer_flow = Path(os.path.expanduser("~")) / ".deer-flow"
+KANBAN_ROOT = (_app_deer_flow if _app_deer_flow.exists() else _home_deer_flow) / "kanban"
 KANBAN_ROOT.mkdir(parents=True, exist_ok=True)
+
 
 COLUMN_COLORS = ["#3B82F6", "#F59E0B", "#10B981", "#8B5CF6", "#EC4899", "#EF4444"]
 SECTION_COLORS = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#0D9488", "#6366F1"]

@@ -18,7 +18,9 @@ from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/storage", tags=["storage"])
 
-STORAGE_ROOT = Path(os.path.expanduser("~")) / ".deer-flow" / "storage"
+_app_deer_flow = Path(__file__).resolve().parents[4] / ".deer-flow"
+_home_deer_flow = Path(os.path.expanduser("~")) / ".deer-flow"
+STORAGE_ROOT = (_app_deer_flow if _app_deer_flow.exists() else _home_deer_flow) / "storage"
 STORAGE_ROOT.mkdir(parents=True, exist_ok=True)
 
 

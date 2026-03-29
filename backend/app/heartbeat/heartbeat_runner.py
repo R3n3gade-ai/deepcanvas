@@ -9,12 +9,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_LANGGRAPH_URL = "http://localhost:2024"
+DEFAULT_LANGGRAPH_URL = os.environ.get("LANGGRAPH_URL", "http://localhost:2024")
 DEFAULT_ASSISTANT_ID = "agent"
 DEFAULT_IDLE_SECONDS = 30  # wait 30s after last user message before continuing
 DEFAULT_TICK_INTERVAL = 30  # seconds between continue messages

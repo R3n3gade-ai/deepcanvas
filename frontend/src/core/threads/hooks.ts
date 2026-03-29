@@ -9,6 +9,19 @@ import type { PromptInputMessage } from "@/components/ai-elements/prompt-input";
 
 import { getAPIClient } from "../api";
 import { getBackendBaseURL } from "../config";
+
+// Fire-and-forget activity notification to the gateway
+function notifyActivity(payload: Record<string, unknown>) {
+  const base =
+    typeof window !== "undefined"
+      ? process.env.NEXT_PUBLIC_BACKEND_BASE_URL || ""
+      : "";
+  fetch(`${base}/api/agent-activity/notify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }).catch(() => {});
+}
 import { useI18n } from "../i18n/hooks";
 import type { FileInMessage } from "../messages/utils";
 import type { LocalSettings } from "../settings";
@@ -119,12 +132,19 @@ export function useThreadStream({
     onCreated(meta) {
       handleStreamStart(meta.thread_id);
       setOnStreamThreadId(meta.thread_id);
+      notifyActivity({ thread_id: meta.thread_id, event: "run_start", run_id: meta.thread_id });
     },
     onLangChainEvent(event) {
       if (event.event === "on_tool_end") {
         listeners.current.onToolEnd?.({
           name: event.name,
           data: event.data,
+        });
+        notifyActivity({
+          thread_id: threadIdRef.current || "",
+          event: "tool_call",
+          run_id: threadIdRef.current || "",
+          tool_name: event.name,
         });
       }
     },
@@ -179,6 +199,12 @@ export function useThreadStream({
     onFinish(state) {
       listeners.current.onFinish?.(state.values);
       void queryClient.invalidateQueries({ queryKey: ["threads", "search"] });
+      notifyActivity({
+        thread_id: threadIdRef.current || "",
+        event: "run_end",
+        run_id: threadIdRef.current || "",
+        status: "completed",
+      });
     },
   });
 
@@ -246,6 +272,7 @@ export function useThreadStream({
       setOptimisticMessages(newOptimistic);
 
       _handleOnStart(threadId);
+      notifyActivity({ thread_id: threadId, event: "user_message" });
 
       let uploadedFileInfo: UploadedFileInfo[] = [];
 

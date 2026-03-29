@@ -217,6 +217,10 @@ This gateway provides custom endpoints for models, MCP configuration, skills, an
     from app.gateway.routers import calendar
     app.include_router(calendar.router)
 
+    # Agent Activity API is mounted at /api/agent-activity
+    from app.gateway.routers import agent_activity
+    app.include_router(agent_activity.router)
+
     @app.get("/health", tags=["health"])
     async def health_check() -> dict:
         """Health check endpoint.

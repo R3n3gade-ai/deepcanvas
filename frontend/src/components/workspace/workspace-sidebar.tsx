@@ -33,6 +33,7 @@ import { TaskManager } from "./task-manager";
 import { WorkspaceHeader } from "./workspace-header";
 import { WorkspaceNavChatList } from "./workspace-nav-chat-list";
 import { WorkspaceNavMenu } from "./workspace-nav-menu";
+import { AgentActivityPanel } from "./agent-activity-panel";
 
 type SidebarTab = "chats" | "tasks" | "agents";
 
@@ -351,7 +352,7 @@ export function WorkspaceSidebar({
           )}
           {activeTab === "tasks" && isSidebarOpen && <TasksPlaceholder />}
           {activeTab === "agents" && isSidebarOpen && (
-            <AgentListSidebar />
+            <AgentActivityPanel />
           )}
         </SidebarContent>
         <SidebarFooter>

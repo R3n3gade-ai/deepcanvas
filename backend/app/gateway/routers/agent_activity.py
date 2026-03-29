@@ -204,6 +204,9 @@ async def notify_activity(req: NotifyRequest) -> dict:
     elif req.event == "run_end":
         if req.run_id:
             tracker.record_run_end(req.run_id, req.status or "completed")
+        # Re-engage heartbeat watching so it auto-continues after idle
+        if heartbeat.enabled and req.thread_id:
+            heartbeat.start_watching(req.thread_id)
 
     elif req.event == "tool_call":
         if req.run_id:

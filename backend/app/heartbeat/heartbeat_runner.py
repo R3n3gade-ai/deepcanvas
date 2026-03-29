@@ -16,7 +16,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 DEFAULT_LANGGRAPH_URL = os.environ.get("LANGGRAPH_URL", "http://localhost:2024")
-DEFAULT_ASSISTANT_ID = "agent"
+DEFAULT_ASSISTANT_ID = "lead_agent"
 DEFAULT_IDLE_SECONDS = 30  # wait 30s after last user message before continuing
 DEFAULT_TICK_INTERVAL = 30  # seconds between continue messages
 
@@ -74,12 +74,20 @@ class HeartbeatRunner:
         logger.info("Heartbeat mode disabled")
 
     def notify_user_activity(self, thread_id: str | None = None) -> None:
-        """Called when user sends a message — resets the idle timer."""
+        """Called when user sends a message — resets the idle timer and restarts watching."""
         self._last_user_activity = time.time()
         if thread_id:
             self._active_thread_id = thread_id
         # Stop any running heartbeat loop — user is active
         self._running = False
+        # Re-start watching so the idle timer re-engages after the agent responds
+        if self._enabled and thread_id:
+            if self._task and not self._task.done():
+                self._task.cancel()
+            self._tick_count = 0
+            self._task = asyncio.create_task(self._watch_loop())
+            self._task.add_done_callback(self._on_done)
+            logger.info("Heartbeat: re-engaged watching on thread %s", thread_id)
 
     def start_watching(self, thread_id: str) -> None:
         """Start watching a thread for idle timeout."""

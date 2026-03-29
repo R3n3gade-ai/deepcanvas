@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_LANGGRAPH_URL = os.environ.get("LANGGRAPH_URL", "http://localhost:2024")
 DEFAULT_ASSISTANT_ID = "lead_agent"
-DEFAULT_IDLE_SECONDS = 30  # wait 30s after last user message before continuing
-DEFAULT_TICK_INTERVAL = 30  # seconds between continue messages
+DEFAULT_IDLE_SECONDS = 10  # wait 10s after last user message before continuing
+DEFAULT_TICK_INTERVAL = 15  # seconds between continue messages
 
 CONTINUE_PROMPT = (
     "Continue working on the current task. "
@@ -42,7 +42,7 @@ class HeartbeatRunner:
         self._assistant_id = assistant_id
         self._idle_seconds = idle_seconds
         self._tick_interval = tick_interval
-        self._enabled = False
+        self._enabled = True  # heartbeat is ON by default
         self._running = False
         self._task: asyncio.Task | None = None
         self._active_thread_id: str | None = None

@@ -78,7 +78,7 @@ function StatusBadge({ status }: { status: string }) {
       label: "Error",
     },
   };
-  const c = config[status] || config.idle;
+  const c = config[status] ?? config["idle"]!;
   return (
     <span
       className={cn(

@@ -23,6 +23,8 @@ NEXT_PUBLIC_APP_URL="http://31.97.211.149:2026"
 SKIP_ENV_VALIDATION=1
 FENVEOF
 
+export NEXT_PUBLIC_APP_URL="http://31.97.211.149:2026"
+
 # 3. Copy config.yaml from example
 cp config.example.yaml config.yaml
 
@@ -49,6 +51,7 @@ DEER_FLOW_EXTENSIONS_CONFIG_PATH=/opt/deepcanvas/extensions_config.example.json
 DEER_FLOW_DOCKER_SOCKET=/var/run/docker.sock
 DEER_FLOW_REPO_ROOT=/opt/deepcanvas
 BETTER_AUTH_SECRET=k8Xp2mNqR7vY4wZ9aB3cD6eF1gH5jL0
+NEXT_PUBLIC_APP_URL=http://31.97.211.149:2026
 HOME=/root
 PORT=2026
 DENVEOF

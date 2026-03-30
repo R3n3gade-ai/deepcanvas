@@ -16,7 +16,7 @@ ENVEOF
 
 # 2. Create frontend .env
 cat > frontend/.env << 'FENVEOF'
-NEXT_PUBLIC_BACKEND_BASE_URL="http://localhost:8001"
+NEXT_PUBLIC_BACKEND_BASE_URL=""
 DATABASE_URL="postgresql://postgres.tzoptwhisidhcwjgzxff:Mrrobot0720%24@aws-1-us-east-1.pooler.supabase.com:5432/postgres"
 BETTER_AUTH_SECRET="k8Xp2mNqR7vY4wZ9aB3cD6eF1gH5jL0"
 NEXT_PUBLIC_APP_URL="http://31.97.211.149:2026"

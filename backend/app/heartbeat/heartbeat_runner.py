@@ -119,9 +119,11 @@ class HeartbeatRunner:
             logger.info("Heartbeat: user idle for %ds, starting auto-continue on thread %s",
                         self._idle_seconds, self._active_thread_id)
 
+            consecutive_failures = 0
             while self._running and self._enabled:
                 try:
                     done = await self._tick()
+                    consecutive_failures = 0
                     if done:
                         self._running = False
                         break
@@ -129,6 +131,11 @@ class HeartbeatRunner:
                     return
                 except Exception:
                     logger.exception("Heartbeat tick failed")
+                    consecutive_failures += 1
+                    if consecutive_failures >= 3:
+                        logger.error("Heartbeat: 3 consecutive failures, stopping to avoid crash loop")
+                        self._running = False
+                        break
 
                 try:
                     await asyncio.sleep(self._tick_interval)
@@ -150,38 +157,75 @@ class HeartbeatRunner:
 
         logger.info("Heartbeat tick #%d on thread %s", self._tick_count, self._active_thread_id)
 
-        result = await client.runs.wait(
-            self._active_thread_id,
-            self._assistant_id,
-            input={"messages": [{"role": "human", "content": CONTINUE_PROMPT}]},
-        )
+        try:
+            result = await client.runs.create(
+                self._active_thread_id,
+                self._assistant_id,
+                input={"messages": [{"role": "human", "content": CONTINUE_PROMPT}]},
+            )
+        except Exception as e:
+            logger.error("Heartbeat: failed to create run: %s", e)
+            raise
 
-        # Extract response text
-        response = self._extract_response(result)
-        logger.info("Heartbeat tick #%d response: %s", self._tick_count, response[:200])
+        if result is None:
+            logger.warning("Heartbeat tick #%d: runs.create returned None", self._tick_count)
+            return False
 
-        if "[DONE]" in response:
-            logger.info("Heartbeat: agent reported task complete")
-            return True
-        if "[WAITING]" in response:
-            logger.info("Heartbeat: agent waiting for user input")
-            return True
+        run_id = result.get("run_id") if isinstance(result, dict) else getattr(result, "run_id", None)
+        logger.info("Heartbeat tick #%d: created run %s", self._tick_count, run_id)
+
+        # Poll for completion
+        import asyncio as _asyncio
+        for _ in range(60):  # max 5 min polling
+            try:
+                await _asyncio.sleep(5)
+                state = await client.threads.get_state(self._active_thread_id)
+                values = state.values if hasattr(state, 'values') else (state.get('values', {}) if isinstance(state, dict) else {})
+                messages = values.get('messages', []) if isinstance(values, dict) else []
+                response = self._extract_response(messages)
+                next_step = state.next if hasattr(state, 'next') else (state.get('next', []) if isinstance(state, dict) else [])
+                if not next_step:  # agent has finished
+                    logger.info("Heartbeat tick #%d response: %s", self._tick_count, response[:200] if response else '(empty)')
+                    if "[DONE]" in response:
+                        logger.info("Heartbeat: agent reported task complete")
+                        return True
+                    if "[WAITING]" in response:
+                        logger.info("Heartbeat: agent waiting for user input")
+                        return True
+                    return False
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                logger.warning("Heartbeat: poll error: %s", e)
+                break
 
         return False
 
     @staticmethod
-    def _extract_response(result: dict | list) -> str:
+    def _extract_response(result: dict | list | None) -> str:
+        if result is None:
+            return ""
         if isinstance(result, dict):
             messages = result.get("messages", [])
         elif isinstance(result, list):
             messages = result
         else:
             return ""
+        if not messages:
+            return ""
         for msg in reversed(messages):
-            if isinstance(msg, dict) and msg.get("type") == "ai":
+            if not isinstance(msg, dict):
+                continue
+            if msg.get("type") == "ai" or msg.get("role") == "assistant":
                 content = msg.get("content", "")
                 if isinstance(content, str) and content.strip():
                     return content.strip()
+                elif isinstance(content, list):
+                    for part in content:
+                        if isinstance(part, dict) and part.get("type") == "text":
+                            text = part.get("text", "").strip()
+                            if text:
+                                return text
         return ""
 
     def get_status(self) -> dict[str, Any]:

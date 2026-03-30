@@ -67,9 +67,7 @@ backend/htmlcov
 backend/.coverage
 backend/.deer-flow
 backend/.langgraph_cache
-**/.langgraph_cache
-**/artifacts
-**/uploads
+
 *.md
 !README.md
 !frontend/README.md

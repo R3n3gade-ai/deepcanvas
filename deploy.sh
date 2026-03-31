@@ -5,14 +5,23 @@ echo "=== DeepCanvas VPS Deployment ==="
 
 cd /opt/deepcanvas
 
-# 1. Create backend .env
-cat > .env << 'ENVEOF'
+# 1. Create backend .env (only if it doesn't exist — preserves saved API keys)
+if [ ! -f .env ]; then
+  echo "Creating initial .env..."
+  cat > .env << 'ENVEOF'
 TAVILY_API_KEY=your-tavily-api-key
 JINA_API_KEY=your-jina-api-key
 INFOQUEST_API_KEY=your-infoquest-api-key
 CORS_ORIGINS=http://localhost:3000,http://localhost:2026,http://31.97.211.149:2026
 GEMINI_API_KEY=AIzaSyAEGvcl9t32q0CmfxssHqSrMHnMHpIjviA
 ENVEOF
+else
+  echo ".env already exists — preserving saved API keys"
+  # Ensure CORS_ORIGINS includes the VPS IP
+  if ! grep -q '31.97.211.149' .env; then
+    echo 'CORS_ORIGINS=http://localhost:3000,http://localhost:2026,http://31.97.211.149:2026' >> .env
+  fi
+fi
 
 # 2. Create frontend .env
 cat > frontend/.env << 'FENVEOF'

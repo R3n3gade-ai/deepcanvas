@@ -1,38 +1,32 @@
-"""Start langgraph dev with a patched config that includes models=[].
+"""Patch langgraph.json in-place to add models=[], then start langgraph dev.
 
-langgraph-api 0.7.65 requires 'models' in the config but langgraph.json
-doesn't include it. This script patches the JSON and passes it via --config.
+langgraph-api 0.7.65 requires 'models' in the config but the langgraph.json
+doesn't include it. This script patches the JSON file in-place before exec'ing
+into langgraph dev.
 """
 import json
 import os
-import shutil
 import sys
 
-CONFIG_SRC = "langgraph.json"
-CONFIG_DST = "/tmp/langgraph_patched.json"
+CONFIG = "langgraph.json"
 
 
 def main():
-    # Read the original config
-    with open(CONFIG_SRC) as f:
+    # Read, patch, and overwrite langgraph.json
+    with open(CONFIG) as f:
         data = json.load(f)
 
-    # Ensure models is set
     if "models" not in data or data["models"] is None:
         data["models"] = []
+        with open(CONFIG, "w") as f:
+            json.dump(data, f, indent=2)
+        print(f"Patched {CONFIG}: added models=[]", file=sys.stderr)
 
-    # Write patched config
-    with open(CONFIG_DST, "w") as f:
-        json.dump(data, f, indent=2)
-
-    print(f"Patched config: added models=[] -> {CONFIG_DST}", file=sys.stderr)
-
-    # Exec langgraph dev with the patched config
+    # Exec langgraph dev
     os.execvp(
         "uv",
         [
             "uv", "run", "langgraph", "dev",
-            "--config", CONFIG_DST,
             "--no-browser",
             "--allow-blocking",
             "--no-reload",

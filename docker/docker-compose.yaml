@@ -110,11 +110,7 @@ services:
       context: ../
       dockerfile: backend/Dockerfile
     container_name: deer-flow-langgraph
-    command: >-
-      sh -c "set -a && . /app/.env && set +a && cd /app/backend &&
-      sed -i 's/models: list\[ModelConfig\]/models: list[ModelConfig] = []/g'
-      .venv/lib/python3.12/site-packages/langgraph_api/config.py 2>/dev/null;
-      uv run langgraph dev --no-browser --allow-blocking --no-reload --host 0.0.0.0 --port 2024"
+    command: sh -c "set -a && . /app/.env && set +a && cd /app/backend && uv run python start_langgraph.py"
     volumes:
       - ../.env:/app/.env:ro
       - ${DEER_FLOW_CONFIG_PATH}:/app/config.yaml:ro

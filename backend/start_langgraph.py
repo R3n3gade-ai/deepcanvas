@@ -1,70 +1,46 @@
-"""Wrapper to start langgraph dev with the AppConfig.models bug patched.
+"""Start langgraph dev with a patched config that includes models=[].
 
-langgraph-api 0.7.65 has a bug where AppConfig.models defaults to None
-instead of [] (empty list). This wrapper injects a sitecustomize.py into
-the Python site-packages so the patch is active in ALL processes, including
-subprocesses spawned by 'langgraph dev'.
+langgraph-api 0.7.65 requires 'models' in the config but langgraph.json
+doesn't include it. This script patches the JSON and passes it via --config.
 """
+import json
 import os
-import site
-import subprocess
+import shutil
 import sys
-import textwrap
+
+CONFIG_SRC = "langgraph.json"
+CONFIG_DST = "/tmp/langgraph_patched.json"
 
 
-def install_patch():
-    """Write a sitecustomize.py that patches AppConfig on import."""
-    # Find the site-packages directory
-    sp_dirs = site.getsitepackages()
-    if not sp_dirs:
-        sp_dirs = [site.getusersitepackages()]
+def main():
+    # Read the original config
+    with open(CONFIG_SRC) as f:
+        data = json.load(f)
 
-    patch_code = textwrap.dedent("""\
-        # Auto-patch for langgraph-api 0.7.65 models bug
-        import importlib
-        _original_import = __builtins__.__import__ if hasattr(__builtins__, '__import__') else __import__
+    # Ensure models is set
+    if "models" not in data or data["models"] is None:
+        data["models"] = []
 
-        def _patch_appconfig():
-            try:
-                from langgraph_api.config import AppConfig
-                orig = AppConfig.model_validate.__func__
-                def patched(cls, data, *a, **kw):
-                    if isinstance(data, dict) and ('models' not in data or data.get('models') is None):
-                        data = {**data, 'models': []}
-                    return orig(cls, data, *a, **kw)
-                AppConfig.model_validate = classmethod(patched)
-            except Exception:
-                pass
+    # Write patched config
+    with open(CONFIG_DST, "w") as f:
+        json.dump(data, f, indent=2)
 
-        _patch_appconfig()
-    """)
+    print(f"Patched config: added models=[] -> {CONFIG_DST}", file=sys.stderr)
 
-    for sp in sp_dirs:
-        target = os.path.join(sp, "sitecustomize.py")
-        try:
-            with open(target, "w") as f:
-                f.write(patch_code)
-            print(f"Installed AppConfig patch at {target}", file=sys.stderr)
-            return True
-        except Exception as e:
-            print(f"Could not write to {sp}: {e}", file=sys.stderr)
-
-    return False
-
-
-if __name__ == "__main__":
-    install_patch()
-
-    # Now exec langgraph dev directly (same process, patch is in sitecustomize)
+    # Exec langgraph dev with the patched config
     os.execvp(
-        sys.executable,
+        "uv",
         [
-            sys.executable, "-m", "langgraph_cli",
-            "dev",
+            "uv", "run", "langgraph", "dev",
+            "--config", CONFIG_DST,
             "--no-browser",
             "--allow-blocking",
             "--no-reload",
             "--host", "0.0.0.0",
             "--port", "2024",
-        ]
+        ],
     )
+
+
+if __name__ == "__main__":
+    main()

@@ -2,35 +2,29 @@
 
 langgraph-api 0.7.65 has a bug where AppConfig.models defaults to None
 instead of [] (empty list), causing a Pydantic validation error at startup.
-This wrapper patches the Pydantic field before invoking the CLI.
+This patches model_validate to inject models=[] before validation.
 """
 import sys
 
+# Patch BEFORE anything else imports langgraph
+from langgraph_api.config import AppConfig
 
-def patch_models_default():
-    """Patch AppConfig so 'models' field defaults to [] instead of None."""
-    try:
-        from langgraph_api.config import AppConfig
-
-        if "models" in AppConfig.model_fields:
-            field = AppConfig.model_fields["models"]
-            if field.default is None:
-                from pydantic.fields import PydanticUndefined
-
-                # Set default to empty list
-                field.default = []
-                field.default_factory = None
-                # Rebuild the model so Pydantic picks up the new default
-                AppConfig.model_rebuild(force=True)
-                print("Patched AppConfig.models default to []", file=sys.stderr)
-    except Exception as e:
-        print(f"Warning: Could not patch AppConfig.models: {e}", file=sys.stderr)
+_original_model_validate = AppConfig.model_validate.__func__
 
 
+@classmethod
+def _patched_model_validate(cls, data, *args, **kwargs):
+    if isinstance(data, dict):
+        if "models" not in data or data.get("models") is None:
+            data = {**data, "models": []}
+    return _original_model_validate(cls, data, *args, **kwargs)
+
+
+AppConfig.model_validate = _patched_model_validate
+print("Patched AppConfig.model_validate to inject models=[]", file=sys.stderr)
+
+# Now run the langgraph CLI
 if __name__ == "__main__":
-    patch_models_default()
-
-    # Now run the langgraph CLI
     from langgraph_cli.cli import cli
 
     sys.argv = [

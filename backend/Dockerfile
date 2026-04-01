@@ -32,6 +32,13 @@ COPY backend ./backend
 RUN --mount=type=cache,target=/root/.cache/uv \
     sh -c "cd backend && uv sync"
 
+# Patch langgraph-api cli.py to pass models=[] (fixes models=None validation bug in 0.7.65)
+RUN CLIPY=$(find /app/backend/.venv -path '*/langgraph_api/cli.py' 2>/dev/null | head -1) && \
+    if [ -n "$CLIPY" ]; then \
+      sed -i '/checkpointer = config_data.get("checkpointer")/a\    import os as _os; _os.environ["LANGGRAPH_MODELS"] = __import__("json").dumps(config_data.get("models", []))' "$CLIPY" && \
+      echo "Patched $CLIPY to pass LANGGRAPH_MODELS"; \
+    fi
+
 # Expose ports (gateway: 8001, langgraph: 2024)
 EXPOSE 8001 2024
 

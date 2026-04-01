@@ -32,12 +32,12 @@ COPY backend ./backend
 RUN --mount=type=cache,target=/root/.cache/uv \
     sh -c "cd backend && uv sync"
 
-# Patch langgraph-api cli.py to pass models=[] (fixes models=None validation bug in 0.7.65)
-RUN CLIPY=$(find /app/backend/.venv -path '*/langgraph_api/cli.py' 2>/dev/null | head -1) && \
-    if [ -n "$CLIPY" ]; then \
-      sed -i '/checkpointer = config_data.get("checkpointer")/a\    import os as _os; _os.environ["LANGGRAPH_MODELS"] = __import__("json").dumps(config_data.get("models", []))' "$CLIPY" && \
-      echo "Patched $CLIPY to pass LANGGRAPH_MODELS"; \
-    fi
+# Fix langgraph-api 0.7.65 models=None bug: install a .pth startup patch
+# The .pth file runs at Python startup in ALL processes (including uvicorn subprocesses)
+RUN SITE_DIR=$(find /app/backend/.venv -type d -name 'site-packages' | head -1) && \
+    cp /app/backend/_lg_patch.py "$SITE_DIR/_lg_patch.py" && \
+    echo "import _lg_patch" > "$SITE_DIR/zzz_lg_patch.pth" && \
+    echo "Installed .pth patch in $SITE_DIR"
 
 # Expose ports (gateway: 8001, langgraph: 2024)
 EXPOSE 8001 2024

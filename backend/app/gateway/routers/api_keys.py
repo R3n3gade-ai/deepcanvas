@@ -268,42 +268,48 @@ async def update_api_keys(request: ApiKeysUpdateRequest) -> ApiKeysUpdateRespons
             logger.warning(f"Unknown API key: {key}")
 
     # Write to .env file
-    _write_env_updates(updates)
+    try:
+        _write_env_updates(updates)
+    except Exception as e:
+        logger.error(f"Failed to write .env updates: {e}")
+        return ApiKeysUpdateResponse(success=False, updated=[])
 
     # Also update os.environ for the current process
     for key, value in updates.items():
         os.environ[key] = value
 
-    # Auto-restart langgraph container so it picks up the new keys
-    # The Docker socket is mounted into this container
-    _restart_langgraph()
-
     logger.info(f"Updated API keys: {list(updates.keys())}")
+
+    # Schedule langgraph restart in background (non-blocking)
+    import threading
+    threading.Thread(target=_restart_langgraph, daemon=True).start()
+
     return ApiKeysUpdateResponse(success=True, updated=list(updates.keys()))
 
 
 def _restart_langgraph() -> None:
-    """Restart the langgraph container so it re-sources .env with new API keys."""
+    """Restart the langgraph container so it re-sources .env with new API keys.
+    
+    Runs in a background thread — must not touch asyncio or block the request.
+    """
     import subprocess
+    import time
+
+    # Small delay so the HTTP response has time to be sent
+    time.sleep(2)
 
     try:
         result = subprocess.run(
             ["docker", "restart", "deer-flow-langgraph"],
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=60,
         )
         if result.returncode == 0:
             logger.info("Restarted deer-flow-langgraph to apply new API keys")
-            # Also restart nginx to refresh upstream connections
-            subprocess.run(
-                ["docker", "restart", "deer-flow-nginx"],
-                capture_output=True, text=True, timeout=15,
-            )
         else:
             logger.warning(f"Failed to restart langgraph: {result.stderr}")
     except Exception as e:
         logger.warning(f"Could not restart langgraph container: {e}")
-
 
 

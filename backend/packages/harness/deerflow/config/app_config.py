@@ -86,6 +86,9 @@ class AppConfig(BaseModel):
         # Check config version before processing
         cls._check_config_version(config_data, resolved_path)
 
+        # Re-read .env to pick up any keys saved via the frontend API Keys page
+        cls._refresh_dotenv()
+
         config_data = cls.resolve_env_variables(config_data)
 
         # Load title config if present
@@ -170,6 +173,24 @@ class AppConfig(BaseModel):
             )
 
     @classmethod
+    def _refresh_dotenv(cls) -> None:
+        """Re-read the .env file to pick up changes made by the gateway.
+
+        The frontend API Keys page writes keys to the shared .env file.
+        We must re-read it so that os.getenv() returns the latest values.
+        """
+        from dotenv import load_dotenv as _load_dotenv
+        # Try the standard locations for the .env file
+        for candidate in [
+            Path("/app/.env"),                 # Docker volume mount
+            Path(os.getcwd()) / ".env",        # CWD
+            Path(os.getcwd()).parent / ".env", # Parent of CWD
+        ]:
+            if candidate.exists():
+                _load_dotenv(candidate, override=True)
+                return
+
+    @classmethod
     def resolve_env_variables(cls, config: Any) -> Any:
         """Recursively resolve environment variables in the config.
 
@@ -184,8 +205,11 @@ class AppConfig(BaseModel):
         if isinstance(config, str):
             if config.startswith("$"):
                 env_value = os.getenv(config[1:])
-                if env_value is None:
-                    raise ValueError(f"Environment variable {config[1:]} not found for config value {config}")
+                if env_value is None or env_value == "":
+                    # Don't crash — return None so the model can report a clear error
+                    logger.warning(f"Environment variable {config[1:]} is not set. "
+                                   f"Please configure it via Settings > API Keys.")
+                    return None
                 return env_value
             return config
         elif isinstance(config, dict):
@@ -231,6 +255,7 @@ class AppConfig(BaseModel):
 _app_config: AppConfig | None = None
 _app_config_path: Path | None = None
 _app_config_mtime: float | None = None
+_env_file_mtime: float | None = None
 _app_config_is_custom = False
 
 
@@ -254,15 +279,28 @@ def _load_and_cache_app_config(config_path: str | None = None) -> AppConfig:
     return _app_config
 
 
+def _get_env_file_path() -> Path | None:
+    """Find the .env file path."""
+    for candidate in [
+        Path("/app/.env"),
+        Path(os.getcwd()) / ".env",
+        Path(os.getcwd()).parent / ".env",
+    ]:
+        if candidate.exists():
+            return candidate
+    return None
+
+
 def get_app_config() -> AppConfig:
     """Get the DeerFlow config instance.
 
     Returns a cached singleton instance and automatically reloads it when the
-    underlying config file path or modification time changes. Use
-    `reload_app_config()` to force a reload, or `reset_app_config()` to clear
-    the cache.
+    underlying config file path or modification time changes, OR when the .env
+    file changes (e.g. user saved new API keys via the frontend).
+    Use `reload_app_config()` to force a reload, or `reset_app_config()` to
+    clear the cache.
     """
-    global _app_config, _app_config_path, _app_config_mtime
+    global _app_config, _app_config_path, _app_config_mtime, _env_file_mtime
 
     if _app_config is not None and _app_config_is_custom:
         return _app_config
@@ -270,24 +308,24 @@ def get_app_config() -> AppConfig:
     resolved_path = AppConfig.resolve_config_path()
     current_mtime = _get_config_mtime(resolved_path)
 
+    # Also check if .env changed (API keys updated from frontend)
+    env_path = _get_env_file_path()
+    current_env_mtime = _get_config_mtime(env_path) if env_path else None
+
     should_reload = (
         _app_config is None
         or _app_config_path != resolved_path
         or _app_config_mtime != current_mtime
+        or _env_file_mtime != current_env_mtime
     )
     if should_reload:
-        if (
-            _app_config_path == resolved_path
-            and _app_config_mtime is not None
-            and current_mtime is not None
-            and _app_config_mtime != current_mtime
-        ):
-            logger.info(
-                "Config file has been modified (mtime: %s -> %s), reloading AppConfig",
-                _app_config_mtime,
-                current_mtime,
-            )
+        if _app_config is not None:
+            if _app_config_mtime != current_mtime:
+                logger.info("Config file changed, reloading AppConfig")
+            if _env_file_mtime != current_env_mtime:
+                logger.info(".env file changed (API keys updated?), reloading AppConfig")
         _load_and_cache_app_config(str(resolved_path))
+        _env_file_mtime = current_env_mtime
     return _app_config
 
 

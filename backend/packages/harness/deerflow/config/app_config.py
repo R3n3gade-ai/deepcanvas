@@ -124,6 +124,25 @@ class AppConfig(BaseModel):
         config_data["extensions"] = extensions_config.model_dump()
 
         result = cls.model_validate(config_data)
+
+        # Filter out models whose API key is missing/empty.
+        # This prevents crashes when a user hasn't configured all providers yet.
+        # Models become available as soon as the user saves the relevant key.
+        available_models = []
+        for m in result.models:
+            # Check common API key fields (extra fields from config.yaml)
+            extra = m.model_extra or {}
+            api_key = extra.get("api_key") or extra.get("google_api_key")
+            if api_key is None or api_key == "":
+                logger.info(
+                    "Skipping model '%s' — API key not configured. "
+                    "Add it via Settings > API Keys.",
+                    m.name,
+                )
+                continue
+            available_models.append(m)
+        result.models = available_models
+
         return result
 
     @classmethod

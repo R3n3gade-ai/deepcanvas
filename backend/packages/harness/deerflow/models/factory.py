@@ -77,13 +77,39 @@ def create_chat_model(name: str | None = None, thinking_enabled: bool = False, *
         elif "reasoning_effort" not in model_settings_from_config:
             model_settings_from_config["reasoning_effort"] = "medium"
 
-    # Always ensure os.environ has the latest API keys from .env before model instantiation.
-    # This prevents requiring a container restart when users update keys in the UI.
-    try:
-        from deerflow.config.app_config import AppConfig
-        AppConfig._refresh_dotenv()
-    except Exception as e:
-        logger.warning(f"Failed to refresh .env dynamically: {e}")
+    # Always ensure os.environ has the latest API keys
+    # Multi-tenant SaaS update: fetch API keys from Next.js backend using workspace_id if present
+    import httpx
+    workspace_id = kwargs.pop("workspace_id", None)
+    if workspace_id:
+        try:
+            # Connect internally to frontend container on port 3000
+            internal_api_url = f"http://frontend:3000/api/internal/workspaces/{workspace_id}/api-keys"
+            # Optional: Add INTERNAL_API_SECRET if set in env
+            headers = {}
+            if "INTERNAL_API_SECRET" in os.environ:
+                headers["Authorization"] = f"Bearer {os.environ['INTERNAL_API_SECRET']}"
+            
+            with httpx.Client(timeout=3.0) as client:
+                res = client.get(internal_api_url, headers=headers)
+                if res.status_code == 200:
+                    data = res.json()
+                    workspace_keys = data.get("keys", {})
+                    # Temporarily update environment variables for this request
+                    for k, v in workspace_keys.items():
+                        if v and v.strip():
+                            os.environ[k] = v
+                    logger.debug(f"Loaded {len(workspace_keys)} API keys for workspace {workspace_id}")
+                else:
+                    logger.warning(f"Failed to fetch workspace API keys: HTTP {res.status_code}")
+        except Exception as e:
+            logger.warning(f"Error fetching workspace API keys from frontend: {e}")
+    else:
+        try:
+            from deerflow.config.app_config import AppConfig
+            AppConfig._refresh_dotenv()
+        except Exception as e:
+            logger.warning(f"Failed to refresh .env dynamically: {e}")
 
     model_instance = model_class(**kwargs, **model_settings_from_config)
 

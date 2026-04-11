@@ -9,6 +9,7 @@ import type { PromptInputMessage } from "@/components/ai-elements/prompt-input";
 
 import { getAPIClient } from "../api";
 import { getBackendBaseURL } from "../config";
+import { useWorkspaceContext } from "@/core/workspaces/workspace-context";
 
 // Fire-and-forget activity notification to the gateway
 function notifyActivity(payload: Record<string, unknown>) {
@@ -83,6 +84,7 @@ export function useThreadStream({
   // and to allow access to the current thread id in onUpdateEvent
   const threadIdRef = useRef<string | null>(threadId ?? null);
   const startedRef = useRef(false);
+  const { activeWorkspaceId } = useWorkspaceContext();
 
   const listeners = useRef({
     onStart,
@@ -410,6 +412,7 @@ export function useThreadStream({
                       ? "low"
                       : undefined),
               thread_id: threadId,
+              workspace_id: activeWorkspaceId,
             },
           },
         );

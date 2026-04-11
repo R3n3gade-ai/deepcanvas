@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
+import { useWorkspaceContext } from "@/core/workspaces/workspace-context";
 
 interface ApiKeyDef {
     key: string;
@@ -74,6 +75,7 @@ function ApiKeyInput({
 }
 
 export function ApiKeysSettingsPage() {
+    const { activeWorkspaceId } = useWorkspaceContext();
     const [keyDefs, setKeyDefs] = useState<ApiKeyDef[]>([]);
     const [values, setValues] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(true);
@@ -84,8 +86,9 @@ export function ApiKeysSettingsPage() {
 
     useEffect(() => {
         async function fetchKeys() {
+            if (!activeWorkspaceId) return;
             try {
-                const res = await fetch(`${backendUrl}/api/api-keys`);
+                const res = await fetch(`/api/workspaces/${activeWorkspaceId}/api-keys`);
                 if (res.ok) {
                     const data: ApiKeysResponse = await res.json();
                     setKeyDefs(data.keys);
@@ -97,7 +100,7 @@ export function ApiKeysSettingsPage() {
             }
         }
         fetchKeys();
-    }, [backendUrl]);
+    }, [activeWorkspaceId]);
 
     const handleChange = useCallback((key: string, value: string) => {
         setValues((prev) => ({ ...prev, [key]: value }));
@@ -116,7 +119,7 @@ export function ApiKeysSettingsPage() {
 
         setSaving(true);
         try {
-            const res = await fetch(`${backendUrl}/api/api-keys`, {
+            const res = await fetch(`/api/workspaces/${activeWorkspaceId}/api-keys`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ keys: updates }),
@@ -125,7 +128,7 @@ export function ApiKeysSettingsPage() {
                 const data = await res.json();
                 toast.success(`Saved ${data.updated.length} API key(s)`);
                 // Refresh the key list to show updated masked values
-                const refreshRes = await fetch(`${backendUrl}/api/api-keys`);
+                const refreshRes = await fetch(`/api/workspaces/${activeWorkspaceId}/api-keys`);
                 if (refreshRes.ok) {
                     const refreshData: ApiKeysResponse = await refreshRes.json();
                     setKeyDefs(refreshData.keys);
@@ -140,7 +143,7 @@ export function ApiKeysSettingsPage() {
         } finally {
             setSaving(false);
         }
-    }, [values, backendUrl]);
+    }, [values, activeWorkspaceId]);
 
     // Group keys by category
     const groups = keyDefs.reduce(

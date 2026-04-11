@@ -1,0 +1,1 @@
+ALTER TABLE "workspace" ADD COLUMN "api_keys" jsonb DEFAULT '{}'::jsonb NOT NULL;

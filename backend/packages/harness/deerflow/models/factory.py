@@ -77,6 +77,14 @@ def create_chat_model(name: str | None = None, thinking_enabled: bool = False, *
         elif "reasoning_effort" not in model_settings_from_config:
             model_settings_from_config["reasoning_effort"] = "medium"
 
+    # Always ensure os.environ has the latest API keys from .env before model instantiation.
+    # This prevents requiring a container restart when users update keys in the UI.
+    try:
+        from deerflow.config.app_config import AppConfig
+        AppConfig._refresh_dotenv()
+    except Exception as e:
+        logger.warning(f"Failed to refresh .env dynamically: {e}")
+
     model_instance = model_class(**kwargs, **model_settings_from_config)
 
     if is_tracing_enabled():

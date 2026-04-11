@@ -288,67 +288,11 @@ async def update_api_keys(request: ApiKeysUpdateRequest) -> ApiKeysUpdateRespons
 
 
 def _restart_langgraph() -> None:
-    """Force-recreate the langgraph container so it picks up new .env values.
+    """Notify about API key updates.
     
-    `docker restart` does NOT re-read env_file, so we must use
-    `docker compose up --force-recreate` or fall back to stop+start.
-    Runs in a background thread — must not touch asyncio.
+    In older versions, this forced a docker container restart.
+    Now, deerflow dynamically reloads .env on every run, so we just log.
     """
-    import subprocess
-    import time
-
-    # Small delay so the HTTP response has time to be sent
-    time.sleep(2)
-
-    compose_file = None
-    # Try to find the docker-compose.yaml on the host filesystem
-    # The gateway container has docker.sock mounted; compose files are on the host
-    for candidate in [
-        "/opt/deepcanvas/docker/docker-compose.yaml",
-        "/app/docker/docker-compose.yaml",
-    ]:
-        check = subprocess.run(
-            ["docker", "exec", "deer-flow-gateway", "test", "-f", candidate],
-            capture_output=True, timeout=5,
-        )
-        # Can't easily check host paths from inside container.
-        # Use docker compose with project directory if available.
-        break
-
-    # Strategy 1: docker compose up --force-recreate (re-reads env_file)
-    try:
-        result = subprocess.run(
-            [
-                "docker", "compose",
-                "-f", "/opt/deepcanvas/docker/docker-compose.yaml",
-                "--project-directory", "/opt/deepcanvas/docker",
-                "up", "-d", "--force-recreate", "--no-build", "langgraph",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=90,
-            env={**os.environ, "DOCKER_HOST": "unix:///var/run/docker.sock"},
-        )
-        if result.returncode == 0:
-            logger.info("Force-recreated deer-flow-langgraph with fresh env")
-            return
-        else:
-            logger.warning(f"docker compose recreate failed: {result.stderr[:200]}")
-    except Exception as e:
-        logger.warning(f"docker compose not available: {e}")
-
-    # Strategy 2: Fallback — docker restart (command re-sources .env via volume mount)
-    try:
-        result = subprocess.run(
-            ["docker", "restart", "deer-flow-langgraph"],
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
-        if result.returncode == 0:
-            logger.info("Restarted deer-flow-langgraph (docker restart fallback)")
-        else:
-            logger.warning(f"Failed to restart langgraph: {result.stderr}")
-    except Exception as e:
-        logger.warning(f"Could not restart langgraph container: {e}")
+    logger.info("API keys updated. LangGraph will dynamically pick them up on the next request without a restart.")
+    return
 

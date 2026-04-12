@@ -22,9 +22,9 @@ from deerflow.models import create_chat_model
 logger = logging.getLogger(__name__)
 
 
-def _resolve_model_name(requested_model_name: str | None = None) -> str:
+def _resolve_model_name(requested_model_name: str | None = None, workspace_id: str | None = None) -> str:
     """Resolve a runtime model name safely, falling back to default if invalid. Returns None if no models are configured."""
-    app_config = get_app_config()
+    app_config = get_app_config(workspace_id=workspace_id)
     default_model_name = app_config.models[0].name if app_config.models else None
     if default_model_name is None:
         raise ValueError("No chat models are configured. Please configure at least one model in config.yaml.")
@@ -278,12 +278,12 @@ def make_lead_agent(config: RunnableConfig):
 
     agent_config = load_agent_config(agent_name) if not is_bootstrap else None
     # Custom agent model or fallback to global/default model resolution
-    agent_model_name = agent_config.model if agent_config and agent_config.model else _resolve_model_name()
+    agent_model_name = agent_config.model if agent_config and agent_config.model else _resolve_model_name(workspace_id=workspace_id)
 
     # Final model name resolution with request override, then agent config, then global default
     model_name = requested_model_name or agent_model_name
 
-    app_config = get_app_config()
+    app_config = get_app_config(workspace_id=workspace_id)
     model_config = app_config.get_model_config(model_name) if model_name else None
 
     if model_config is None:

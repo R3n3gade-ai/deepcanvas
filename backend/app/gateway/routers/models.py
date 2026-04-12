@@ -29,7 +29,7 @@ class ModelsListResponse(BaseModel):
     summary="List All Models",
     description="Retrieve a list of all available AI models configured in the system.",
 )
-async def list_models() -> ModelsListResponse:
+async def list_models(workspace_id: str | None = None) -> ModelsListResponse:
     """List all available models from configuration.
 
     Returns model information suitable for frontend display,
@@ -58,7 +58,7 @@ async def list_models() -> ModelsListResponse:
         }
         ```
     """
-    config = get_app_config()
+    config = get_app_config(workspace_id=workspace_id)
     models = [
         ModelResponse(
             name=model.name,

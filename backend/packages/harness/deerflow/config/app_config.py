@@ -68,7 +68,7 @@ class AppConfig(BaseModel):
             return path
 
     @classmethod
-    def from_file(cls, config_path: str | None = None) -> Self:
+    def from_file(cls, config_path: str | None = None, workspace_id: str | None = None) -> Self:
         """Load config from YAML file.
 
         See `resolve_config_path` for more details.
@@ -88,6 +88,27 @@ class AppConfig(BaseModel):
 
         # Re-read .env to pick up any keys saved via the frontend API Keys page
         cls._refresh_dotenv()
+        
+        # If workspace_id is provided, fetch its keys and temporarily inject them 
+        # so resolve_env_variables sees them.
+        import httpx
+        if workspace_id:
+            try:
+                internal_api_url = f"http://frontend:3000/api/internal/workspaces/{workspace_id}/api-keys"
+                headers = {}
+                if "INTERNAL_API_SECRET" in os.environ:
+                    headers["Authorization"] = f"Bearer {os.environ['INTERNAL_API_SECRET']}"
+                with httpx.Client(timeout=3.0) as client:
+                    res = client.get(internal_api_url, headers=headers)
+                    if res.status_code == 200:
+                        data = res.json()
+                        workspace_keys = data.get("keys", {})
+                        for k, v in workspace_keys.items():
+                            if v and v.strip():
+                                os.environ[k] = v
+                        logger.debug(f"Loaded {len(workspace_keys)} API keys for workspace {workspace_id} during config resolution")
+            except Exception as e:
+                logger.warning(f"Error fetching workspace API keys during config resolution: {e}")
 
         config_data = cls.resolve_env_variables(config_data)
 
@@ -286,12 +307,12 @@ def _get_config_mtime(config_path: Path) -> float | None:
         return None
 
 
-def _load_and_cache_app_config(config_path: str | None = None) -> AppConfig:
+def _load_and_cache_app_config(config_path: str | None = None, workspace_id: str | None = None) -> AppConfig:
     """Load config from disk and refresh cache metadata."""
     global _app_config, _app_config_path, _app_config_mtime, _app_config_is_custom
 
     resolved_path = AppConfig.resolve_config_path(config_path)
-    _app_config = AppConfig.from_file(str(resolved_path))
+    _app_config = AppConfig.from_file(str(resolved_path), workspace_id=workspace_id)
     _app_config_path = resolved_path
     _app_config_mtime = _get_config_mtime(resolved_path)
     _app_config_is_custom = False
@@ -310,7 +331,7 @@ def _get_env_file_path() -> Path | None:
     return None
 
 
-def get_app_config() -> AppConfig:
+def get_app_config(workspace_id: str | None = None) -> AppConfig:
     """Get the DeerFlow config instance.
 
     Returns a cached singleton instance and automatically reloads it when the
@@ -331,8 +352,10 @@ def get_app_config() -> AppConfig:
     env_path = _get_env_file_path()
     current_env_mtime = _get_config_mtime(env_path) if env_path else None
 
+    # In multi-tenant, if workspace_id is provided, always reload to get the right API keys
     should_reload = (
         _app_config is None
+        or workspace_id is not None
         or _app_config_path != resolved_path
         or _app_config_mtime != current_mtime
         or _env_file_mtime != current_env_mtime
@@ -341,9 +364,11 @@ def get_app_config() -> AppConfig:
         if _app_config is not None:
             if _app_config_mtime != current_mtime:
                 logger.info("Config file changed, reloading AppConfig")
-            if _env_file_mtime != current_env_mtime:
+            elif _env_file_mtime != current_env_mtime:
                 logger.info(".env file changed (API keys updated?), reloading AppConfig")
-        _load_and_cache_app_config(str(resolved_path))
+            elif workspace_id is not None:
+                logger.debug(f"Reloading AppConfig for workspace {workspace_id}")
+        _load_and_cache_app_config(str(resolved_path), workspace_id=workspace_id)
         _env_file_mtime = current_env_mtime
     return _app_config
 
